@@ -1,4 +1,6 @@
-﻿using PdfAssinadorDigital;
+using iTextSharp.text;
+using iTextSharp.text.pdf;
+using PdfAssinadorDigital;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -34,7 +36,7 @@ namespace PdfAssinadorDigital
             {
                 var fileContent = File.ReadAllBytes(pdfFile);
                 X509Certificate2 certificate = PdfAssinadorUtil.SelectCertificate();
-                var signedFileContent = PdfAssinadorUtil.AssinarPdf(certificate, fileContent, "usuário","razao","local", true);
+                var signedFileContent = PdfAssinadorUtil.AssinarPdf(certificate, fileContent, "usuário","razao","local",null,PdfSignatureAppearance.RenderingMode.DESCRIPTION, true);
 
                 if (backup)
                     File.Move(pdfFile, pdfFile + ".bkp");
