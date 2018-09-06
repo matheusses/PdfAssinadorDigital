@@ -1,4 +1,4 @@
-﻿using iTextSharp.text;
+using iTextSharp.text;
 using iTextSharp.text.pdf;
 using iTextSharp.text.pdf.security;
 using System;
@@ -14,7 +14,7 @@ namespace PdfAssinadorDigital
 {
     public static class PdfAssinadorUtil
     {
-        public static byte[] AssinarPdf(X509Certificate2 certificate, byte[] sourceDocument, string colaborator, string razao, string local, bool allowInvalidCertificate)
+        public static byte[] AssinarPdf(X509Certificate2 certificate, byte[] sourceDocument, string usuario, string razao, string local, Image imagem, PdfSignatureAppearance.RenderingMode TipoRenderizacao, bool allowInvalidCertificate)
         {
             try
             {
@@ -31,15 +31,15 @@ namespace PdfAssinadorDigital
                         appearance.ReasonCaption = string.Empty;
                         appearance.Reason = razao;
                         appearance.Location = local;
-                        //appearance.SignatureGraphic = Image.GetInstance("~/img/top-logo.png");
-                        appearance.Layer4Text = "Documento certificado por " + colaborator;
+                        appearance.SignatureGraphic = imagem;
+                        appearance.Layer4Text = "Documento certificado por " + usuario;
 
                         Rectangle rect = new Rectangle(600, 100, 300, 150);
                         Chunk c = new Chunk();
                         rect.Chunks.Add(c);
-                        appearance.SetVisibleSignature(rect, reader.NumberOfPages, "Assinatura");
+                        appearance.SetVisibleSignature(rect, reader.NumberOfPages, "Assinatura Digital");
 
-                        appearance.SignatureRenderingMode = PdfSignatureAppearance.RenderingMode.DESCRIPTION;
+                        appearance.SignatureRenderingMode = TipoRenderizacao;
 
                         ICollection<Org.BouncyCastle.X509.X509Certificate> certChain;
                         IExternalSignature es = ResolveExternalSignatureFromCertStore(certificate, allowInvalidCertificate, out certChain);
@@ -66,13 +66,13 @@ namespace PdfAssinadorDigital
                 //Criar um armazenamento de certificado utilizando a conta de usuário.
                 if (store == null)
                     throw new Exception("Não há certificado digital disponível.");
-                //Abrindo o armazenamento de certificados.
+                //Abrir o armazenamento de certificados.
                 store.Open(OpenFlags.ReadOnly);
 
-                //Selecionando um certificado
+                //Selecionar um certificado
                 X509CertificateCollection certificates = X509Certificate2UI.SelectFromCollection(store.Certificates, "Lista de certificados", "Por favor, selecione um certificado", X509SelectionFlag.SingleSelection);
 
-                //Recuperação para o certificado selecionado.
+                //Recuperar para o certificado selecionado.
                 X509Certificate2 certificate = null;
 
                 if (certificates.Count != 0)
