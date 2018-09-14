@@ -15,11 +15,13 @@ namespace PdfAssinadorDigital
 {
     public static class PdfAssinadorUtil
     {
+        public static  String DEST = "results/objects/draw_rectangle.pdf";
         public static byte[] AssinarPdf(X509Certificate2 certificate, DadosAssinatura dadosAssinatura)
         {
             try
             {
-                // ler arquivo e inserir dados de assinatura
+               
+                // ler arquivo e insere dados de assinatura
                 using (PdfReader reader = new PdfReader(dadosAssinatura.ArquivoPdf))
                 {
                     using (MemoryStream fout = new MemoryStream())
@@ -35,24 +37,23 @@ namespace PdfAssinadorDigital
                         Phrase pDocumento = new Phrase(dados[1], f);                        
                         Phrase pData = new Phrase(certificate.GetEffectiveDateString(), f);
                         Phrase pServico = new Phrase(dadosAssinatura.Servico, f);
-                        
                         // Imagem marca d'água
                         Image img = dadosAssinatura.Imagem;
                         float w = 200F;
                         float h = 75.2F;
-                        
                         // Transparência
                         PdfGState gs1 = new PdfGState();
  
                         // Propriedades
                         PdfContentByte over;
                         Rectangle pagesize;
-                        float x, y;
+                                               
                         int n = reader.NumberOfPages;
                     
                         //Página
                         var pagina = 1;
                         pagesize = reader.GetPageSizeWithRotation(pagina);
+
 
                         switch (dadosAssinatura.PaginaAssinatura)
                         {
@@ -66,33 +67,52 @@ namespace PdfAssinadorDigital
                                 pagina = 1;
                                 break;
                         }
-
+                        float x, y, xr = 0, hr = 0, yr = 0, wr = 0;
                         //Posição da assinatura
                         switch (dadosAssinatura.Posicao)
                         {
                             case EnumPosicao.ACIMA_ESQUERDA:
                                 x = (float)(pagesize.Left * 0.88);
                                 y = (float)(pagesize.Top * 0.88);
+                                xr = x * 0.5F;
+                                wr = w;
+                                yr = pagesize.Top * 0.97F;
+                                hr = pagesize.Top * 0.88F;
+                                
                                 break;
                             case EnumPosicao.ACIMA_DIREITA:
                                 x = (float)(pagesize.Right * 0.64);
                                 y = (float)(pagesize.Top * 0.88);
+                                xr = pagesize.Right * 0.97F;
+                                wr = xr - w;
+                                yr = pagesize.Top * 0.97F;
+                                hr = pagesize.Top * 0.88F;
                                 break;
                             case EnumPosicao.ABAIXO_ESQUERDA:
                                 x = (float)(pagesize.Left * 0.88);
                                 y = (float)(pagesize.Bottom * 0.88);
+                                xr = x * 0.5F;
+                                wr = w;
+                                yr = y;
+                                hr = h;
                                 break;
                             case EnumPosicao.ABAIXO_DIREITA:
                                 x = (float)(pagesize.Right * 0.64);
                                 y = (float)(pagesize.Bottom * 0.88);
+                                xr = x * 1.53F;
+                                wr = w * 1.9F;
+                                yr = y;
+                                hr = h;
                                 break;
                             default:
                                 x = (float)(pagesize.Left * 0.88);
                                 y = (float)(pagesize.Top * 0.88);
+                                xr = x * 1.53F;
+                                wr = w * 1.9F;
                                 break;
                         }
 
-                        //Plotar a assinatura no pdf
+                        //Plota a assinatura no pdf
                         over = stamper.GetOverContent(pagina);
                         over.SaveState();
                         over.SetGState(gs1);
@@ -103,15 +123,29 @@ namespace PdfAssinadorDigital
                         ColumnText.ShowTextAligned(over, Element.ALIGN_TOP, pData, x + 10, y + 25, 0);
                         ColumnText.ShowTextAligned(over, Element.ALIGN_TOP, pServico, x+ 10, y + 10, 0);
                         over.RestoreState();
+
                         
-                        PdfSignatureAppearance appearance = stamper.SignatureAppearance;                                               
-                        appearance.SignatureRenderingMode = PdfSignatureAppearance.RenderingMode.GRAPHIC;
+                        PdfSignatureAppearance appearance = stamper.SignatureAppearance;
+                        appearance.SignatureRenderingMode = PdfSignatureAppearance.RenderingMode.DESCRIPTION;
+                        appearance.Layer2Text = "";
+                        appearance.Layer4Text = "";
+                        //appearance.Image = Image.GetInstance(dadosAssinatura.Imagem);
+
+                        Rectangle rect = new Rectangle(wr ,hr,xr , yr);
+                        //over.Rectangle(rect);
+                        appearance.SetVisibleSignature(rect,pagina,"Assinatura Digital");
+                        
+       
+
+
+
+
 
                         ICollection<Org.BouncyCastle.X509.X509Certificate> certChain;
                         IExternalSignature es = ResolveExternalSignatureFromCertStore(certificate, dadosAssinatura.CertificadoValido, out certChain);
 
                         //Autenticação da assinatura digital
-                        MakeSignature.SignDetached(appearance, es, certChain, null, null, null, 0, CryptoStandard.CMS);
+                        MakeSignature.SignDetached(appearance, es, certChain, null, null, null, 0, CryptoStandard.CADES);
 
                         stamper.Close();
                         return fout.ToArray();
