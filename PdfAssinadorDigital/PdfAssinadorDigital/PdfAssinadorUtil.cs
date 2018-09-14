@@ -15,7 +15,6 @@ namespace PdfAssinadorDigital
 {
     public static class PdfAssinadorUtil
     {
-        public static  String DEST = "results/objects/draw_rectangle.pdf";
         public static byte[] AssinarPdf(X509Certificate2 certificate, DadosAssinatura dadosAssinatura)
         {
             try
@@ -123,23 +122,13 @@ namespace PdfAssinadorDigital
                         ColumnText.ShowTextAligned(over, Element.ALIGN_TOP, pData, x + 10, y + 25, 0);
                         ColumnText.ShowTextAligned(over, Element.ALIGN_TOP, pServico, x+ 10, y + 10, 0);
                         over.RestoreState();
-
                         
                         PdfSignatureAppearance appearance = stamper.SignatureAppearance;
                         appearance.SignatureRenderingMode = PdfSignatureAppearance.RenderingMode.DESCRIPTION;
                         appearance.Layer2Text = "";
                         appearance.Layer4Text = "";
-                        //appearance.Image = Image.GetInstance(dadosAssinatura.Imagem);
-
                         Rectangle rect = new Rectangle(wr ,hr,xr , yr);
-                        //over.Rectangle(rect);
                         appearance.SetVisibleSignature(rect,pagina,"Assinatura Digital");
-                        
-       
-
-
-
-
 
                         ICollection<Org.BouncyCastle.X509.X509Certificate> certChain;
                         IExternalSignature es = ResolveExternalSignatureFromCertStore(certificate, dadosAssinatura.CertificadoValido, out certChain);
