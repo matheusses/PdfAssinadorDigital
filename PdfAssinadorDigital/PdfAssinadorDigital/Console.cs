@@ -1,5 +1,4 @@
 using iTextSharp.text;
-using iTextSharp.text.pdf;
 using PdfAssinadorDigital;
 using System;
 using System.Collections.Generic;
@@ -25,7 +24,7 @@ namespace PdfAssinadorDigital
         static int Main(string[] args)
         {
             bool backup = true;
-            string pdfFile = @"caminho do arquivo .pdf a ser assinado";
+            string pdfFile = @"";//File source
             if (!File.Exists(pdfFile))
             {
                 System.Console.WriteLine("File '{0}' not found.", pdfFile);
@@ -35,8 +34,17 @@ namespace PdfAssinadorDigital
             try
             {
                 var fileContent = File.ReadAllBytes(pdfFile);
-                X509Certificate2 certificate = PdfAssinadorUtil.SelectCertificate();
-                var signedFileContent = PdfAssinadorUtil.AssinarPdf(certificate, fileContent, "usuário","razao","local",null,PdfSignatureAppearance.RenderingMode.DESCRIPTION, true);
+                var dadosAssinatura = new DadosAssinatura
+                {
+                    Imagem = Image.GetInstance("imagem"),
+                    PaginaAssinatura = EnumPaginaAssinatura.PRIMEIRA,
+                    Posicao = EnumPosicao.ABAIXO_DIREITA,
+                    CertificadoValido = true,
+                    ArquivoPdf = fileContent
+                };
+                
+                X509Certificate2 certificate = PdfAssinadorUtil.SelecionarCertificado();
+                var signedFileContent = PdfAssinadorUtil.AssinarPdf(certificate, dadosAssinatura);
 
                 if (backup)
                     File.Move(pdfFile, pdfFile + ".bkp");
