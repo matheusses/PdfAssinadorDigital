@@ -9,40 +9,106 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using static iTextSharp.text.Font;
 
 namespace PdfAssinadorDigital
 {
     public static class PdfAssinadorUtil
     {
-        public static byte[] AssinarPdf(X509Certificate2 certificate, byte[] sourceDocument, string usuario, string razao, string local, Image imagem, PdfSignatureAppearance.RenderingMode TipoRenderizacao, bool allowInvalidCertificate)
+        public static byte[] AssinarPdf(X509Certificate2 certificate, DadosAssinatura dadosAssinatura)
         {
             try
             {
-                // ler arquivo e insere dados de assinatura
-                using (PdfReader reader = new PdfReader(sourceDocument))
+                // ler arquivo e inserir dados de assinatura
+                using (PdfReader reader = new PdfReader(dadosAssinatura.ArquivoPdf))
                 {
                     using (MemoryStream fout = new MemoryStream())
                     {
                         PdfStamper stamper = PdfStamper.CreateSignature(reader, fout, '\0');
 
-                        // Atributos da assinatura plotada no pdf
-                        PdfSignatureAppearance appearance = stamper.SignatureAppearance;
-                        appearance.LocationCaption = string.Empty;
-                        appearance.ReasonCaption = string.Empty;
-                        appearance.Reason = razao;
-                        appearance.Location = local;
-                        appearance.SignatureGraphic = imagem;
-                        appearance.Layer4Text = "Documento certificado por " + usuario;
+                        // texto marca d'água
+                        Font f = new Font(Font.FontFamily.UNDEFINED, 10);
+                        Phrase pAssinado = new Phrase("Assinado digitalmente por:", f);
+                        string[] dados = certificate.GetNameInfo(X509NameType.SimpleName, false).Split(':');
 
-                        Rectangle rect = new Rectangle(600, 100, 300, 150);
-                        Chunk c = new Chunk();
-                        rect.Chunks.Add(c);
-                        appearance.SetVisibleSignature(rect, reader.NumberOfPages, "Assinatura Digital");
+                        Phrase pNome = new Phrase(dados[0], f);
+                        Phrase pDocumento = new Phrase(dados[1], f);                        
+                        Phrase pData = new Phrase(certificate.GetEffectiveDateString(), f);
+                        Phrase pServico = new Phrase(dadosAssinatura.Servico, f);
+                        
+                        // Imagem marca d'água
+                        Image img = dadosAssinatura.Imagem;
+                        float w = 200F;
+                        float h = 75.2F;
+                        
+                        // Transparência
+                        PdfGState gs1 = new PdfGState();
+ 
+                        // Propriedades
+                        PdfContentByte over;
+                        Rectangle pagesize;
+                        float x, y;
+                        int n = reader.NumberOfPages;
+                    
+                        //Página
+                        var pagina = 1;
+                        pagesize = reader.GetPageSizeWithRotation(pagina);
 
-                        appearance.SignatureRenderingMode = TipoRenderizacao;
+                        switch (dadosAssinatura.PaginaAssinatura)
+                        {
+                            case EnumPaginaAssinatura.PRIMEIRA:
+                                pagina = 1;
+                                break;
+                            case EnumPaginaAssinatura.ULTIMA:
+                                pagina = reader.NumberOfPages;
+                                break;
+                            default:
+                                pagina = 1;
+                                break;
+                        }
+
+                        //Posição da assinatura
+                        switch (dadosAssinatura.Posicao)
+                        {
+                            case EnumPosicao.ACIMA_ESQUERDA:
+                                x = (float)(pagesize.Left * 0.88);
+                                y = (float)(pagesize.Top * 0.88);
+                                break;
+                            case EnumPosicao.ACIMA_DIREITA:
+                                x = (float)(pagesize.Right * 0.64);
+                                y = (float)(pagesize.Top * 0.88);
+                                break;
+                            case EnumPosicao.ABAIXO_ESQUERDA:
+                                x = (float)(pagesize.Left * 0.88);
+                                y = (float)(pagesize.Bottom * 0.88);
+                                break;
+                            case EnumPosicao.ABAIXO_DIREITA:
+                                x = (float)(pagesize.Right * 0.64);
+                                y = (float)(pagesize.Bottom * 0.88);
+                                break;
+                            default:
+                                x = (float)(pagesize.Left * 0.88);
+                                y = (float)(pagesize.Top * 0.88);
+                                break;
+                        }
+
+                        //Plotar a assinatura no pdf
+                        over = stamper.GetOverContent(pagina);
+                        over.SaveState();
+                        over.SetGState(gs1);
+                        over.AddImage(img, w, 0, 0, h, x, y);
+                        ColumnText.ShowTextAligned(over, Element.ALIGN_TOP, pAssinado, x + 10, y + 60, 0);
+                        ColumnText.ShowTextAligned(over, Element.ALIGN_TOP, pNome, x + 10, y + 50, 0);
+                        ColumnText.ShowTextAligned(over, Element.ALIGN_TOP, pDocumento, x + 10, y + 40, 0);
+                        ColumnText.ShowTextAligned(over, Element.ALIGN_TOP, pData, x + 10, y + 25, 0);
+                        ColumnText.ShowTextAligned(over, Element.ALIGN_TOP, pServico, x+ 10, y + 10, 0);
+                        over.RestoreState();
+                        
+                        PdfSignatureAppearance appearance = stamper.SignatureAppearance;                                               
+                        appearance.SignatureRenderingMode = PdfSignatureAppearance.RenderingMode.GRAPHIC;
 
                         ICollection<Org.BouncyCastle.X509.X509Certificate> certChain;
-                        IExternalSignature es = ResolveExternalSignatureFromCertStore(certificate, allowInvalidCertificate, out certChain);
+                        IExternalSignature es = ResolveExternalSignatureFromCertStore(certificate, dadosAssinatura.CertificadoValido, out certChain);
 
                         //Autenticação da assinatura digital
                         MakeSignature.SignDetached(appearance, es, certChain, null, null, null, 0, CryptoStandard.CMS);
@@ -58,7 +124,7 @@ namespace PdfAssinadorDigital
                 throw;
             }
         }
-        public static X509Certificate2 SelectCertificate()
+        public static X509Certificate2 SelecionarCertificado()
         {
             X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
             try
@@ -66,13 +132,13 @@ namespace PdfAssinadorDigital
                 //Criar um armazenamento de certificado utilizando a conta de usuário.
                 if (store == null)
                     throw new Exception("Não há certificado digital disponível.");
-                //Abrir o armazenamento de certificados.
+                //Abrindo o armazenamento de certificados.
                 store.Open(OpenFlags.ReadOnly);
 
-                //Selecionar um certificado
+                //Selecionando um certificado
                 X509CertificateCollection certificates = X509Certificate2UI.SelectFromCollection(store.Certificates, "Lista de certificados", "Por favor, selecione um certificado", X509SelectionFlag.SingleSelection);
 
-                //Recuperar para o certificado selecionado.
+                //Recuperação para o certificado selecionado.
                 X509Certificate2 certificate = null;
 
                 if (certificates.Count != 0)
@@ -110,5 +176,28 @@ namespace PdfAssinadorDigital
                 throw;
             }
         }
+
+    }
+    public enum EnumPosicao
+    {
+        ACIMA_ESQUERDA = 1,
+        ACIMA_DIREITA = 2,
+        ABAIXO_ESQUERDA = 3,
+        ABAIXO_DIREITA = 4
+    }
+    public enum EnumPaginaAssinatura
+    {
+        PRIMEIRA = 1,
+        ULTIMA = 2
+    }
+
+    public class DadosAssinatura
+    {
+        public Image Imagem { get; set; }
+        public string Servico { get; set; }
+        public EnumPosicao Posicao { get; set; }
+        public EnumPaginaAssinatura PaginaAssinatura { get; set; }
+        public bool CertificadoValido { get; set; }
+        public byte[] ArquivoPdf { get; set; }
     }
 }
